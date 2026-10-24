@@ -41,7 +41,12 @@ def req(method: str, path: str, data=None, token: str | None = None, files=None)
     try:
         with urllib.request.urlopen(r, timeout=180) as resp:
             raw = resp.read().decode()
-            return resp.status, json.loads(raw) if raw else {}
+            if not raw:
+                return resp.status, {}
+            try:
+                return resp.status, json.loads(raw)
+            except json.JSONDecodeError:
+                return resp.status, {"raw": raw}
     except urllib.error.HTTPError as e:
         raw = e.read().decode()
         try:
