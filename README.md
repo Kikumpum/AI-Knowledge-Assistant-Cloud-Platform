@@ -1,6 +1,6 @@
-# AI Chatbot Cloud
+# AI Knowledge Assistant Cloud Platform
 
-Production-ready AI chatbot platform with **embedding-based RAG**, user authentication, document upload (PDF/TXT), conversation storage, REST API, monitoring dashboard, and full **Docker + Nginx** deployment for Ubuntu cloud servers (AWS EC2 / Google Cloud).
+Document question-answering platform with **embedding-based retrieval**, user authentication, PDF/TXT upload, conversation history, REST API, monitoring, and Docker deployment. Without an OpenAI API key, chat returns excerpts from your uploaded documents.
 
 ## Architecture
 
@@ -52,19 +52,60 @@ Production-ready AI chatbot platform with **embedding-based RAG**, user authenti
 
 ## Quick Start (Docker)
 
+Prerequisites: Docker Desktop in Linux-container mode (or Docker Engine with Compose v2), an available HTTP port, and enough memory for PostgreSQL, ChromaDB, and the embedding model (about 4 GB recommended). First startup downloads the embedding model and needs internet access.
+
 ```bash
 # 1. Clone and configure
+git clone https://github.com/Kikumpum/AI-Knowledge-Assistant-Cloud-Platform.git
+cd AI-Knowledge-Assistant-Cloud-Platform
 cp .env.example .env
-# Edit .env — set SECRET_KEY and POSTGRES_PASSWORD
+# Edit .env: set SECRET_KEY and POSTGRES_PASSWORD
 
 # 2. Build and run
+docker compose config --quiet
 docker compose up -d --build
+docker compose ps
 
 # 3. Open browser
 # http://localhost
 ```
 
-Default flow: Register → Upload documents → Start chat.
+On PowerShell, use `Copy-Item .env.example .env` instead of `cp`. Keep `.env` private. Use a URL-safe PostgreSQL password containing letters, digits, `.`, `_`, `~`, or `-`, because Compose builds the backend database URL from this value. To use another host port, set `HTTP_PORT` in `.env` and open `http://localhost:<HTTP_PORT>`.
+
+Default flow: Register → Upload documents → Start chat. The first backend startup may take several minutes while the model downloads. To inspect it, run `docker compose logs -f backend`.
+
+### Verify the installation
+
+```bash
+curl http://localhost/health
+curl http://localhost/api/health
+python scripts/test_api.py http://localhost
+```
+
+The API script registers a test user, uploads a TXT file, exercises chat, and removes its document and conversation. The test user remains in the database. Replace the URL if `HTTP_PORT` differs.
+
+### Development mode
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+Vite runs at `http://localhost:3000`; Nginx also serves it on `HTTP_PORT`. Both route `/api` to the backend inside Docker. Source files are mounted for live reload. Stop this stack with `docker compose -f docker-compose.yml -f docker-compose.dev.yml down`.
+
+### Common configuration
+
+| Variable | Purpose |
+|----------|---------|
+| `SECRET_KEY` | JWT signing key; set a long random value. |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Database credentials. |
+| `HTTP_PORT` | Host HTTP port; default `80`. |
+| `MAX_UPLOAD_SIZE_MB` | Maximum PDF/TXT upload size; default `10`. |
+| `CORS_ORIGINS` | Comma-separated browser origins. |
+| `USE_OPENAI`, `OPENAI_API_KEY`, `LLM_MODEL` | Optional generative answers. |
+
+Compose sets `DATABASE_URL`, `CHROMA_HOST`, `CHROMA_PORT`, and `UPLOAD_DIR` for the backend container. Changing `POSTGRES_PASSWORD` after PostgreSQL initializes its volume does not change the existing database user's password; update the database credential or recreate the volume only if its data is disposable.
+
+To stop the stack while preserving data, use `docker compose down`. Avoid `down -v` unless you intend to delete the PostgreSQL, ChromaDB, and upload volumes.
 
 ## Project Structure
 
@@ -116,6 +157,12 @@ LLM_MODEL=gpt-3.5-turbo
 
 Without OpenAI, the system uses retrieval-based answers from your uploaded documents.
 
-## License
+## Troubleshooting
 
-MIT
+| Symptom | Check |
+|---------|-------|
+| Docker connection fails | Start Docker Desktop in Linux-container mode and check `docker info`. |
+| Backend is unhealthy | Inspect `docker compose logs backend`; first launch downloads the embedding model. |
+| Database or ChromaDB fails | Inspect `docker compose ps` and the corresponding service logs. |
+| Port 80 is busy | Set `HTTP_PORT` in `.env` and restart Compose. |
+| Upload is rejected | Use PDF/TXT below 10 MB or adjust `MAX_UPLOAD_SIZE_MB`. |

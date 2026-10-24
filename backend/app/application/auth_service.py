@@ -18,11 +18,12 @@ class AuthService:
         self.repo = UserRepository(session)
 
     async def register(self, email: str, password: str, full_name: str) -> User:
+        email = email.lower().strip()
         existing = await self.repo.get_by_email(email)
         if existing:
             raise ValueError("Email already registered")
         return await self.repo.create(
-            email=email.lower().strip(),
+            email=email,
             hashed_password=hash_password(password),
             full_name=full_name.strip(),
         )
@@ -50,7 +51,10 @@ class AuthService:
         user_id = payload.get("sub")
         if not user_id:
             return None
-        user = await self.repo.get_by_id(int(user_id))
+        try:
+            user = await self.repo.get_by_id(int(user_id))
+        except (TypeError, ValueError):
+            return None
         if not user or not user.is_active:
             return None
         return create_access_token(str(user.id))
