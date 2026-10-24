@@ -70,7 +70,7 @@ def main():
 
     print("1. Health & connectivity")
     code, body = req("GET", "/health")
-    run("Nginx /health", code == 200)
+    run("Service /health", code == 200)
 
     code, body = req("GET", "/api/health")
     run("Backend /api/health", code == 200 and body.get("status") == "healthy")

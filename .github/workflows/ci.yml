@@ -28,6 +28,21 @@ jobs:
       - name: Syntax check
         run: python -m compileall app
 
+      - name: Smoke test without Docker
+        timeout-minutes: 15
+        run: |
+          trap 'cat /tmp/assistant-api.log' ERR
+          cp .env.local.example .env
+          mkdir -p data
+          python -m alembic upgrade head
+          python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/assistant-api.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/health > /dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8000/health
+          python ../scripts/test_api.py http://127.0.0.1:8000
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
@@ -41,11 +56,11 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: frontend/package.json
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install and build
         run: |
-          npm install
+          npm ci
           npm run build
 
   docker:
@@ -61,3 +76,27 @@ jobs:
           cp .env.example .env
           docker compose config --quiet
           docker compose -f docker-compose.yml -f docker-compose.dev.yml config --quiet
+
+      - name: Build and start Docker stack
+        timeout-minutes: 25
+        run: docker compose up -d --build
+
+      - name: Smoke test Docker stack
+        timeout-minutes: 15
+        run: |
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://localhost/api/health > /dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          curl -fsS http://localhost/api/health
+          python scripts/test_api.py http://localhost
+
+      - name: Show Docker logs on failure
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs --tail=100
+
+      - name: Stop Docker stack
+        if: always()
+        run: docker compose down

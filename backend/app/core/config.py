@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import List
+from typing import List, Literal
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -23,6 +23,8 @@ class Settings(BaseSettings):
 
     chroma_host: str = "localhost"
     chroma_port: int = 8000
+    chroma_mode: Literal["http", "local"] = "http"
+    chroma_path: str = "./data/chroma"
     chroma_collection: str = "knowledge_base"
 
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"

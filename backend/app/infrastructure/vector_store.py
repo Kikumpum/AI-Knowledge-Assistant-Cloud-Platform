@@ -18,11 +18,18 @@ class VectorStoreService:
     def __init__(self) -> None:
         settings = get_settings()
         self._collection_name = settings.chroma_collection
-        self._client = chromadb.HttpClient(
-            host=settings.chroma_host,
-            port=settings.chroma_port,
-            settings=ChromaSettings(anonymized_telemetry=False),
-        )
+        client_settings = ChromaSettings(anonymized_telemetry=False)
+        if settings.chroma_mode == "local":
+            self._client = chromadb.PersistentClient(
+                path=settings.chroma_path,
+                settings=client_settings,
+            )
+        else:
+            self._client = chromadb.HttpClient(
+                host=settings.chroma_host,
+                port=settings.chroma_port,
+                settings=client_settings,
+            )
         self._collection = self._client.get_or_create_collection(
             name=self._collection_name,
             metadata={"hnsw:space": "cosine"},

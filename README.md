@@ -107,6 +107,34 @@ Compose sets `DATABASE_URL`, `CHROMA_HOST`, `CHROMA_PORT`, and `UPLOAD_DIR` for 
 
 To stop the stack while preserving data, use `docker compose down`. Avoid `down -v` unless you intend to delete the PostgreSQL, ChromaDB, and upload volumes.
 
+## Run without Docker (local development)
+
+This path uses SQLite and embedded ChromaDB in `backend/data/`; it keeps the same API and frontend features without separate database servers. Install Python 3.11 and Node.js 20 first. The first document upload downloads the embedding model, so internet access and several GB of free disk space are needed.
+
+From the repository root in PowerShell:
+
+```powershell
+py -3.11 -m venv backend/.venv
+backend/.venv/Scripts/python.exe -m pip install -r backend/requirements.txt
+Copy-Item backend/.env.local.example backend/.env
+New-Item -ItemType Directory -Force backend/data | Out-Null
+Set-Location backend
+.venv/Scripts/python.exe -m alembic upgrade head
+.venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Keep that terminal open. In a second PowerShell terminal, from the repository root:
+
+```powershell
+Set-Location frontend
+npm ci
+npm run dev
+```
+
+Open `http://localhost:3000`. Vite proxies `/api` to the backend on port 8000. API docs are at `http://localhost:8000/docs`. Run `py -3.11 scripts/test_api.py http://localhost:8000` from the repository root to check the complete API flow. For public deployment, use the Docker configuration above with PostgreSQL and a separate ChromaDB service.
+
+On Linux/macOS, use `python3.11 -m venv backend/.venv`, activate the environment, copy `backend/.env.local.example` to `backend/.env`, create `backend/data`, run Alembic and Uvicorn from `backend/`, then run `npm ci && npm run dev` from `frontend/`.
+
 ## Project Structure
 
 ```
